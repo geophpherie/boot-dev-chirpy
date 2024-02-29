@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jbeyer16/boot-dev-chirpy/internal"
 	"golang.org/x/exp/slices"
 )
 
-func createChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
 	}
@@ -35,7 +36,7 @@ func createChirp(w http.ResponseWriter, r *http.Request) {
 
 	cleanedMessage := cleanseProfanity(params.Body)
 
-	chirp, err := DB.CreateChirp(cleanedMessage)
+	chirp, err := cfg.db.CreateChirp(cleanedMessage)
 
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating Chirp")
@@ -45,8 +46,22 @@ func createChirp(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusCreated, chirp)
 }
 
-func getChirps(w http.ResponseWriter, r *http.Request) {
-	Chirps, err := DB.GetChirps()
+func cleanseProfanity(msg string) (cleansedMsg string) {
+	profaneWords := []string{"kerfuffle", "sharbert", "fornax"}
+
+	// convert to all lowercase
+	words := strings.Split(msg, " ")
+	// split on spaces
+	for i, word := range words {
+		if slices.Contains(profaneWords, strings.ToLower(word)) {
+			words[i] = "****"
+		}
+	}
+	return strings.Join(words, " ")
+}
+
+func (cfg *apiConfig) getChirps(w http.ResponseWriter, r *http.Request) {
+	Chirps, err := cfg.db.GetChirps()
 
 	slices.SortFunc(Chirps, func(a, b internal.Chirp) int {
 		return cmp.Compare(a.Id, b.Id)
@@ -60,12 +75,12 @@ func getChirps(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, Chirps)
 }
 
-func getChirpById(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) getChirpById(w http.ResponseWriter, r *http.Request) {
 	chirpId, err := strconv.Atoi(chi.URLParam(r, "chirpId"))
 	if err != nil {
 		fmt.Print("ERROR")
 	}
-	Chirp, err := DB.GetChirp(chirpId)
+	Chirp, err := cfg.db.GetChirp(chirpId)
 
 	if err != nil {
 		respondWithError(w, http.StatusNotFound, "")

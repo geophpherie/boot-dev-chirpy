@@ -2,29 +2,34 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/http"
-	"slices"
-	"strings"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jbeyer16/boot-dev-chirpy/internal"
 )
 
-var DB *internal.DB
-var err error
+const port = "8080"
+
+const databaseFile = "database.json"
 
 func main() {
-	DB, err = internal.NewDB("database.json")
+	dbg := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+
+	if *dbg {
+		os.Remove(databaseFile)
+	}
+	DB, err := internal.NewDB(databaseFile)
 
 	if err != nil {
 		fmt.Println("Unable to read database")
 		return
 	}
 
-	const port = "8080"
-
-	apiCfg := apiConfig{fileserverHits: 0}
+	apiCfg := apiConfig{fileserverHits: 0, db: DB}
 
 	r := chi.NewRouter()
 	corsMux := middlewareCors(r)
@@ -35,14 +40,15 @@ func main() {
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Get("/healthz", healthHandler)
-	apiRouter.Get("/reset", apiCfg.metricsResetHandler)
-	apiRouter.Post("/chirps", createChirp)
-	apiRouter.Get("/chirps", getChirps)
-	apiRouter.Get("/chirps/{chirpId}", getChirpById)
+	apiRouter.Post("/chirps", apiCfg.createChirp)
+	apiRouter.Get("/chirps", apiCfg.getChirps)
+	apiRouter.Get("/chirps/{chirpId}", apiCfg.getChirpById)
+	apiRouter.Post("/users", apiCfg.createUser)
 	r.Mount("/api", apiRouter)
 
 	adminRouter := chi.NewRouter()
 	adminRouter.Get("/metrics", apiCfg.metricsHandler)
+	adminRouter.Get("/reset", apiCfg.metricsResetHandler)
 	r.Mount("/admin", adminRouter)
 
 	server := &http.Server{Addr: ":" + port, Handler: corsMux}
@@ -51,20 +57,6 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-}
-
-func cleanseProfanity(msg string) (cleansedMsg string) {
-	profaneWords := []string{"kerfuffle", "sharbert", "fornax"}
-
-	// convert to all lowercase
-	words := strings.Split(msg, " ")
-	// split on spaces
-	for i, word := range words {
-		if slices.Contains(profaneWords, strings.ToLower(word)) {
-			words[i] = "****"
-		}
-	}
-	return strings.Join(words, " ")
 }
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {

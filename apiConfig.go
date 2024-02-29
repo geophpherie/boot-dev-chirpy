@@ -3,10 +3,13 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/jbeyer16/boot-dev-chirpy/internal"
 )
 
 type apiConfig struct {
 	fileserverHits int
+	db             *internal.DB
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {

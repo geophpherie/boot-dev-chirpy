@@ -3,13 +3,13 @@ package internal
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"sync"
 )
 
 type DBStructure struct {
 	Chirps map[int]Chirp `json:"chirps"`
+	Users  map[int]User  `json:"users"`
 }
 
 type Chirp struct {
@@ -17,47 +17,61 @@ type Chirp struct {
 	Body string `json:"body"`
 }
 
+type User struct {
+	Id    int    `json:"id"`
+	Email string `json:"email"`
+}
+
 type DB struct {
 	path string
 	mux  *sync.RWMutex
 }
 
-var chirpId = 0
-
 func (db *DB) CreateChirp(body string) (Chirp, error) {
-	// get current chirps
-	Chirps, err := db.GetChirps()
+	// get current Structure
+	DbStructure, err := db.loadDB()
 	if err != nil {
-		fmt.Println("Unable to read Chirps")
 		return Chirp{}, err
 	}
 
 	// create new chirp
-	chirpId++
+	chirpId := len(DbStructure.Chirps) + 1
 	newChirp := Chirp{Id: chirpId, Body: body}
-	if len(Chirps) == 0 {
-		Chirps = []Chirp{newChirp}
-	} else {
-		Chirps = append(Chirps, newChirp)
-	}
 
-	// write all chirps into the DB Structure
-	newDbStructure := DBStructure{Chirps: map[int]Chirp{}}
-	for _, chirp := range Chirps {
-		id := chirp.Id
-		newDbStructure.Chirps[id] = chirp
-	}
+	// add it to the db
+	DbStructure.Chirps[chirpId] = newChirp
+
 	// dump the db (call write)
-	err = db.writeDB(newDbStructure)
-
+	err = db.writeDB(DbStructure)
 	if err != nil {
 		return Chirp{}, err
 	}
 
 	return newChirp, nil
-
 }
 
+func (db *DB) CreateUser(email string) (User, error) {
+	// get current Structure
+	DbStructure, err := db.loadDB()
+	if err != nil {
+		return User{}, err
+	}
+
+	// create new chirp
+	userId := len(DbStructure.Users) + 1
+	newUser := User{Id: userId, Email: email}
+
+	// add it to the db
+	DbStructure.Users[userId] = newUser
+
+	// dump the db (call write)
+	err = db.writeDB(DbStructure)
+	if err != nil {
+		return User{}, err
+	}
+
+	return newUser, nil
+}
 func (db *DB) GetChirp(chirpId int) (Chirp, error) {
 	DbStructure, err := db.loadDB()
 	if err != nil {
@@ -81,19 +95,19 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 		return []Chirp{}, nil
 	}
 
-	var Chirps []Chirp
-
+	chirps := make([]Chirp, 0, len(DbStructure.Chirps))
 	for _, v := range DbStructure.Chirps {
-		Chirps = append(Chirps, v)
+		chirps = append(chirps, v)
 	}
 
-	return Chirps, nil
+	return chirps, nil
 
 }
 func (db *DB) ensureDB() error {
 	_, err := os.ReadFile(db.path)
 	if errors.Is(err, os.ErrNotExist) {
-		err = os.WriteFile(db.path, []byte("{}"), 0666)
+		newDb := DBStructure{Chirps: map[int]Chirp{}, Users: map[int]User{}}
+		err = db.writeDB(newDb)
 	}
 	return err
 }
