@@ -6,3 +6,5 @@ require (
 	github.com/go-chi/chi/v5 v5.0.12
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
 )
+
+require golang.org/x/crypto v0.20.0 // indirect
