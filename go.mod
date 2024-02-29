@@ -7,4 +7,8 @@ require (
 	golang.org/x/exp v0.0.0-20240213143201-ec583247a57a
 )
 
-require golang.org/x/crypto v0.20.0 // indirect
+require (
+	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
+	golang.org/x/crypto v0.20.0 // indirect
+)

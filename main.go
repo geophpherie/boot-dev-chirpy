@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jbeyer16/boot-dev-chirpy/internal"
+	"github.com/joho/godotenv"
 )
 
 const port = "8080"
@@ -16,6 +17,8 @@ const port = "8080"
 const databaseFile = "database.json"
 
 func main() {
+	godotenv.Load()
+
 	dbg := flag.Bool("debug", false, "Enable debug mode")
 	flag.Parse()
 
@@ -29,7 +32,8 @@ func main() {
 		return
 	}
 
-	apiCfg := apiConfig{fileserverHits: 0, db: DB}
+	jwtSecret := os.Getenv("JWT_SECRET")
+	apiCfg := apiConfig{fileserverHits: 0, db: DB, jwtSecret: jwtSecret}
 
 	r := chi.NewRouter()
 	corsMux := middlewareCors(r)
