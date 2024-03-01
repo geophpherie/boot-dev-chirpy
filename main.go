@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jbeyer16/boot-dev-chirpy/internal"
+	"github.com/jbeyer16/boot-dev-chirpy/internal/database"
 	"github.com/joho/godotenv"
 )
 
@@ -21,12 +21,11 @@ func main() {
 
 	dbg := flag.Bool("debug", false, "Enable debug mode")
 	flag.Parse()
-
 	if *dbg {
 		os.Remove(databaseFile)
 	}
-	DB, err := internal.NewDB(databaseFile)
 
+	DB, err := database.NewDB(databaseFile)
 	if err != nil {
 		fmt.Println("Unable to read database")
 		return

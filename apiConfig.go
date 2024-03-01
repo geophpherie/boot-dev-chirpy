@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/jbeyer16/boot-dev-chirpy/internal"
+	"github.com/jbeyer16/boot-dev-chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits int
-	db             *internal.DB
+	db             *database.DB
 	jwtSecret      string
 }
 

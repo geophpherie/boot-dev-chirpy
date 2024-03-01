@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jbeyer16/boot-dev-chirpy/internal"
+	"github.com/jbeyer16/boot-dev-chirpy/internal/database"
 	"golang.org/x/exp/slices"
 )
 
@@ -63,7 +63,7 @@ func cleanseProfanity(msg string) (cleansedMsg string) {
 func (cfg *apiConfig) getChirps(w http.ResponseWriter, r *http.Request) {
 	Chirps, err := cfg.db.GetChirps()
 
-	slices.SortFunc(Chirps, func(a, b internal.Chirp) int {
+	slices.SortFunc(Chirps, func(a, b database.Chirp) int {
 		return cmp.Compare(a.Id, b.Id)
 	})
 

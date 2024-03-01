@@ -2,45 +2,59 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"math"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
-	"golang.org/x/crypto/bcrypt"
+	"github.com/jbeyer16/boot-dev-chirpy/internal/auth"
+	"github.com/jbeyer16/boot-dev-chirpy/internal/database"
 )
 
+// define user so that password won't be written to json
+type User struct {
+	Id       int    `json:"id"`
+	Email    string `json:"email"`
+	Password string `json:"-"`
+}
+
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
-	type parameters struct {
+	type requestParameters struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
+	// process request body
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := requestParameters{}
 	err := decoder.Decode(&params)
-
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		respondWithError(w, http.StatusInternalServerError, "Invalid request body")
 		return
 	}
 
-	usr, err := cfg.db.CreateUser(params.Email, params.Password)
-
+	// hash password
+	hashedPassword, err := auth.HashPassword(params.Password)
 	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error hashing password")
+		return
+	}
+
+	// create user
+	user, err := cfg.db.CreateUser(params.Email, hashedPassword)
+	if err != nil {
+		if errors.Is(err, database.ErrUserAlreadyExists) {
+			respondWithError(w, http.StatusConflict, "User already exists")
+			return
+		}
 		respondWithError(w, http.StatusInternalServerError, "Error creating User")
 		return
 	}
 
-	userNoPassword := struct {
-		Id    int    `json:"id"`
-		Email string `json:"email"`
-	}{Id: usr.Id, Email: usr.Email}
-
-	respondWithJSON(w, http.StatusCreated, userNoPassword)
+	// send back user
+	response := User{Id: user.Id, Email: user.Email}
+	respondWithJSON(w, http.StatusCreated, response)
 }
 
 func (cfg *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +62,7 @@ func (cfg *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Email      string `json:"email"`
 		Password   string `json:"password"`
-		Expiration *int   `json:"expires_in_seconds,omitempty"`
+		Expiration int    `json:"expires_in_seconds"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -61,97 +75,105 @@ func (cfg *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// get user with this email
-	usr, err := cfg.db.GetUser(params.Email)
+	user, err := cfg.db.GetUserByEmail(params.Email)
 
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't find user")
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(usr.HashedPassword), []byte(params.Password))
-
+	// validate password with hashed password
+	err = auth.ValidatePassword(params.Password, user.HashedPassword)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "")
 		return
 	}
 
-	var tokenDuration float64
-	if params.Expiration != nil {
-		tokenDuration = math.Min(float64(*params.Expiration), 86400.0)
+	// calculate duration if not provided
+	defaultDuration := 86400
+	if params.Expiration != 0 {
+		params.Expiration = int(math.Min(float64(params.Expiration), float64(defaultDuration)))
 	} else {
-		tokenDuration = 86400.0
+		params.Expiration = defaultDuration
 	}
-	dur, _ := time.ParseDuration(fmt.Sprintf("%vs", tokenDuration))
 
-	issuedTime := jwt.NewNumericDate(time.Now().UTC())
-	expiredTime := jwt.NewNumericDate(issuedTime.Add(dur))
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
-		jwt.RegisteredClaims{
-			Issuer:    "chirpy",
-			IssuedAt:  issuedTime,
-			ExpiresAt: expiredTime,
-			Subject:   fmt.Sprintf("%v", usr.Id),
-		})
-
-	signedToken, err := token.SignedString([]byte(cfg.jwtSecret))
+	// issue the jwt token
+	signedToken, err := auth.IssueJWT(user.Id, cfg.jwtSecret, time.Duration(params.Expiration))
 	if err != nil {
-		fmt.Print(err)
-		respondWithError(w, http.StatusInternalServerError, "Unable to sign")
+		respondWithError(w, http.StatusInternalServerError, "Unable to issue JWT")
 		return
 	}
+
+	// return authenticated user response
 	authenticatedUser := struct {
 		Id    int    `json:"id"`
 		Email string `json:"email"`
 		Token string `json:"token"`
-	}{Id: usr.Id, Email: usr.Email, Token: signedToken}
+	}{
+		Id:    user.Id,
+		Email: user.Email,
+		Token: signedToken,
+	}
 
 	respondWithJSON(w, http.StatusOK, authenticatedUser)
 }
 
 func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
-	bearerToken := r.Header.Get("Authorization")
-
-	token := strings.TrimPrefix(bearerToken, "Bearer ")
-
-	claims := jwt.RegisteredClaims{}
-	_, err := jwt.ParseWithClaims(token, &claims, func(token *jwt.Token) (interface{}, error) { return []byte(cfg.jwtSecret), nil })
-
+	token, err := auth.ParseBearerToken(r.Header)
 	if err != nil {
-		respondWithError(w, http.StatusUnauthorized, "")
+		respondWithError(w, http.StatusInternalServerError, "Invalid token")
 		return
 	}
-	fmt.Print("updating")
-	// get password from request
-	type parameters struct {
+
+	_, claims, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	// parse the request body
+	type requestParameters struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-
 	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
+	params := requestParameters{}
 	err = decoder.Decode(&params)
-
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		respondWithError(w, http.StatusInternalServerError, "Invalid request body")
 		return
 	}
 
-	userId, err := strconv.Atoi(claims.Subject)
+	// convert id from string to int
+	userId, err := claims.GetSubject()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse user Id")
+		return
+	}
+	userIdNum, err := strconv.Atoi(userId)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse user Id")
 		return
 	}
 
-	updatedUser, err := cfg.db.UpdateUser(userId, params.Email, params.Password)
+	// hash password
+	hashedPassword, err := auth.HashPassword(params.Password)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		respondWithError(w, http.StatusInternalServerError, "Error hashing password")
 		return
 	}
 
-	userNoPassword := struct {
-		Id    int    `json:"id"`
-		Email string `json:"email"`
-	}{Id: updatedUser.Id, Email: updatedUser.Email}
-	respondWithJSON(w, http.StatusOK, userNoPassword)
+	// update the user in the database
+	updatedUser, err := cfg.db.UpdateUser(userIdNum, params.Email, hashedPassword)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to update user")
+		return
+	}
+
+	// return updated user info
+	response := User{
+		Id:    updatedUser.Id,
+		Email: updatedUser.Email,
+	}
+	respondWithJSON(w, http.StatusOK, response)
 }
