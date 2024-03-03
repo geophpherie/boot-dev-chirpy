@@ -51,6 +51,7 @@ func main() {
 	apiRouter.Put("/users", apiCfg.updateUser)
 	apiRouter.Post("/refresh", apiCfg.refreshToken)
 	apiRouter.Post("/revoke", apiCfg.revokeToken)
+	apiRouter.Delete("/chirps/{chirpId}", apiCfg.deleteChirp)
 	r.Mount("/api", apiRouter)
 
 	adminRouter := chi.NewRouter()

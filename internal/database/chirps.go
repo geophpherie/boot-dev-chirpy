@@ -66,3 +66,19 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 	return chirps, nil
 
 }
+
+func (db *DB) DeleteChirp(chirpId int) error {
+	DbStructure, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+
+	_, ok := DbStructure.Chirps[chirpId]
+	if !ok {
+		return errors.New("chirp not found")
+	}
+
+	delete(DbStructure.Chirps, chirpId)
+
+	return nil
+}

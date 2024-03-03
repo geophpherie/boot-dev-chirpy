@@ -124,3 +124,62 @@ func (cfg *apiConfig) getChirpById(w http.ResponseWriter, r *http.Request) {
 
 	respondWithJSON(w, http.StatusOK, Chirp)
 }
+
+func (cfg *apiConfig) deleteChirp(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.ParseBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Invalid token")
+		return
+	}
+
+	_, claims, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	issuer, err := claims.GetIssuer()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse token")
+		return
+	}
+
+	if issuer != "chirpy-access" {
+		respondWithError(w, http.StatusUnauthorized, "Non-access token received.")
+		return
+	}
+	// convert id from string to int
+	userId, err := claims.GetSubject()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse user Id")
+		return
+	}
+	userIdNum, err := strconv.Atoi(userId)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse user Id")
+		return
+	}
+
+	chirpId, err := strconv.Atoi(chi.URLParam(r, "chirpId"))
+	if err != nil {
+		fmt.Print("ERROR")
+	}
+	Chirp, err := cfg.db.GetChirp(chirpId)
+
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "")
+		return
+	}
+
+	if Chirp.AuthorId != userIdNum {
+		respondWithError(w, http.StatusForbidden, "you are not the author of this chirp!")
+		return
+	}
+
+	err = cfg.db.DeleteChirp(Chirp.Id)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to delete chirp")
+		return
+	}
+	respondWithJSON(w, http.StatusOK, "chirp deleted")
+}
