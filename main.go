@@ -31,10 +31,12 @@ func main() {
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
+	polkaApiKey := os.Getenv("POLKA_API_KEY")
 	apiCfg := apiConfig{
 		fileserverHits: 0,
 		db:             DB,
 		jwtSecret:      jwtSecret,
+		polkaApiKey:    polkaApiKey,
 	}
 
 	r := chi.NewRouter()

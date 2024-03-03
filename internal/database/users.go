@@ -2,7 +2,6 @@ package database
 
 import (
 	"errors"
-	"fmt"
 )
 
 var ErrUserNotFound = errors.New("User not found")
@@ -89,7 +88,6 @@ func (db *DB) UpgradeUser(id int) (User, error) {
 	}
 
 	dbStructure.Users[id] = updatedUser
-	fmt.Print(dbStructure)
 	err = db.writeDB(dbStructure)
 	if err != nil {
 		return User{}, err

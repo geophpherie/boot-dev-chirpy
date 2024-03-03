@@ -71,12 +71,25 @@ func ValidateJWT(token string, signingSecret string) (jwt.Token, jwt.Claims, err
 
 func ParseBearerToken(headers http.Header) (string, error) {
 	// get token from request
-	bearerToken := headers.Get("Authorization")
+	header := headers.Get("Authorization")
 
-	if bearerToken == "" {
+	if header == "" {
 		return "", errors.New("no bearer token provided")
 	}
-	token := strings.TrimPrefix(bearerToken, "Bearer ")
+	token := strings.TrimPrefix(header, "Bearer ")
 
 	return token, nil
+}
+
+func ParseApiKey(headers http.Header) (string, error) {
+	// get api key from request
+	header := headers.Get("Authorization")
+
+	if header == "" {
+		return "", errors.New("no api key provided")
+	}
+
+	apiKey := strings.TrimPrefix(header, "ApiKey ")
+
+	return apiKey, nil
 }

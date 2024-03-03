@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/jbeyer16/boot-dev-chirpy/internal/auth"
 	"github.com/jbeyer16/boot-dev-chirpy/internal/database"
 )
 
@@ -16,10 +17,22 @@ func (cfg *apiConfig) upgradeUser(w http.ResponseWriter, r *http.Request) {
 		} `json:"data"`
 	}
 
+	// make sure the request has valid apiKey
+	apiKey, err := auth.ParseApiKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid authorization header")
+		return
+	}
+
+	if apiKey != cfg.polkaApiKey {
+		respondWithError(w, http.StatusUnauthorized, "you can't do this")
+		return
+	}
+
 	// process request body
 	decoder := json.NewDecoder(r.Body)
 	params := requestParameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		fmt.Print(err)
 		respondWithError(w, http.StatusInternalServerError, "Invalid request body")
