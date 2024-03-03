@@ -22,13 +22,13 @@ func (db *DB) CreateUser(email string, hashedPassword string) (User, error) {
 	}
 
 	// get current Structure
-	DbStructure, err := db.loadDB()
+	dbStructure, err := db.loadDB()
 	if err != nil {
 		return User{}, err
 	}
 
 	// create new user
-	userId := len(DbStructure.Users) + 1
+	userId := len(dbStructure.Users) + 1
 	newUser := User{
 		Id:             userId,
 		Email:          email,
@@ -36,10 +36,10 @@ func (db *DB) CreateUser(email string, hashedPassword string) (User, error) {
 	}
 
 	// add it to the db
-	DbStructure.Users[userId] = newUser
+	dbStructure.Users[userId] = newUser
 
 	// dump the db (call write)
-	err = db.writeDB(DbStructure)
+	err = db.writeDB(dbStructure)
 	if err != nil {
 		return User{}, err
 	}

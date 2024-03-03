@@ -5,11 +5,13 @@ import (
 	"errors"
 	"os"
 	"sync"
+	"time"
 )
 
 type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
-	Users  map[int]User  `json:"users"`
+	Chirps map[int]Chirp        `json:"chirps"`
+	Users  map[int]User         `json:"users"`
+	Tokens map[string]time.Time `json:"tokens"`
 }
 
 type DB struct {
@@ -20,7 +22,11 @@ type DB struct {
 func (db *DB) ensureDB() error {
 	_, err := os.ReadFile(db.path)
 	if errors.Is(err, os.ErrNotExist) {
-		newDb := DBStructure{Chirps: map[int]Chirp{}, Users: map[int]User{}}
+		newDb := DBStructure{
+			Chirps: map[int]Chirp{},
+			Users:  map[int]User{},
+			Tokens: map[string]time.Time{},
+		}
 		err = db.writeDB(newDb)
 	}
 
@@ -63,7 +69,10 @@ func (db *DB) writeDB(dbStructure DBStructure) error {
 }
 
 func NewDB(path string) (*DB, error) {
-	db := &DB{path: path, mux: &sync.RWMutex{}}
+	db := &DB{
+		path: path,
+		mux:  &sync.RWMutex{},
+	}
 
 	err := db.ensureDB()
 

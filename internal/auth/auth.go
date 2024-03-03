@@ -29,12 +29,14 @@ func ValidatePassword(password string, hashedPassword string) error {
 	return err
 }
 
-func IssueJWT(userId int, signingSecret string, expiresIn time.Duration) (string, error) {
-	issuedTime := jwt.NewNumericDate(time.Now().UTC())
-	expiredTime := jwt.NewNumericDate(issuedTime.Add(expiresIn * time.Second))
+func IssueJWT(issuer string, userId int, signingSecret string, expiresIn time.Duration) (string, error) {
+	now := time.Now().UTC()
+	issuedTime := jwt.NewNumericDate(now)
+	expiredTime := jwt.NewNumericDate(now.Add(expiresIn))
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.RegisteredClaims{
-			Issuer:    "chirpy",
+			Issuer:    issuer,
 			IssuedAt:  issuedTime,
 			ExpiresAt: expiredTime,
 			Subject:   fmt.Sprintf("%v", userId),

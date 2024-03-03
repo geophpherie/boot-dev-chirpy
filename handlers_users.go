@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -60,9 +59,8 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 func (cfg *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 	// get password from request
 	type parameters struct {
-		Email      string `json:"email"`
-		Password   string `json:"password"`
-		Expiration int    `json:"expires_in_seconds"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -76,7 +74,6 @@ func (cfg *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 
 	// get user with this email
 	user, err := cfg.db.GetUserByEmail(params.Email)
-
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't find user")
 		return
@@ -89,30 +86,38 @@ func (cfg *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// calculate duration if not provided
-	defaultDuration := 86400
-	if params.Expiration != 0 {
-		params.Expiration = int(math.Min(float64(params.Expiration), float64(defaultDuration)))
-	} else {
-		params.Expiration = defaultDuration
+	// issue the access token
+	accessToken, err := auth.IssueJWT("chirpy-access", user.Id, cfg.jwtSecret, time.Duration(1)*time.Hour)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to issue access token")
+		return
 	}
 
-	// issue the jwt token
-	signedToken, err := auth.IssueJWT(user.Id, cfg.jwtSecret, time.Duration(params.Expiration))
+	// issue the refresh token
+	refreshToken, err := auth.IssueJWT("chirpy-refresh", user.Id, cfg.jwtSecret, time.Duration(24*60)*time.Hour)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Unable to issue JWT")
+		respondWithError(w, http.StatusInternalServerError, "Unable to issue refresh token")
+		return
+	}
+
+	// add refresh token to database
+	err = cfg.db.AddToken(refreshToken)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to issue refresh token")
 		return
 	}
 
 	// return authenticated user response
 	authenticatedUser := struct {
-		Id    int    `json:"id"`
-		Email string `json:"email"`
-		Token string `json:"token"`
+		Id           int    `json:"id"`
+		Email        string `json:"email"`
+		Token        string `json:"token"`
+		RefreshToken string `json:"refresh_token"`
 	}{
-		Id:    user.Id,
-		Email: user.Email,
-		Token: signedToken,
+		Id:           user.Id,
+		Email:        user.Email,
+		Token:        accessToken,
+		RefreshToken: refreshToken,
 	}
 
 	respondWithJSON(w, http.StatusOK, authenticatedUser)
@@ -128,6 +133,17 @@ func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 	_, claims, err := auth.ValidateJWT(token, cfg.jwtSecret)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	issuer, err := claims.GetIssuer()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse token")
+		return
+	}
+
+	if issuer != "chirpy-access" {
+		respondWithError(w, http.StatusUnauthorized, "Non-access token received.")
 		return
 	}
 
