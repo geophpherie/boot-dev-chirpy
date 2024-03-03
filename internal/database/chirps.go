@@ -3,11 +3,12 @@ package database
 import "errors"
 
 type Chirp struct {
-	Id   int    `json:"id"`
-	Body string `json:"body"`
+	Id       int    `json:"id"`
+	Body     string `json:"body"`
+	AuthorId int    `json:"author_id"`
 }
 
-func (db *DB) CreateChirp(body string) (Chirp, error) {
+func (db *DB) CreateChirp(body string, author_id int) (Chirp, error) {
 	// get current Structure
 	DbStructure, err := db.loadDB()
 	if err != nil {
@@ -16,7 +17,11 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 
 	// create new chirp
 	chirpId := len(DbStructure.Chirps) + 1
-	newChirp := Chirp{Id: chirpId, Body: body}
+	newChirp := Chirp{
+		Id:       chirpId,
+		Body:     body,
+		AuthorId: author_id,
+	}
 
 	// add it to the db
 	DbStructure.Chirps[chirpId] = newChirp

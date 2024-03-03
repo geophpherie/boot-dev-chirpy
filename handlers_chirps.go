@@ -9,18 +9,53 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jbeyer16/boot-dev-chirpy/internal/auth"
 	"github.com/jbeyer16/boot-dev-chirpy/internal/database"
 	"golang.org/x/exp/slices"
 )
 
 func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
+	token, err := auth.ParseBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Invalid token")
+		return
+	}
+
+	_, claims, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	issuer, err := claims.GetIssuer()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse token")
+		return
+	}
+
+	if issuer != "chirpy-access" {
+		respondWithError(w, http.StatusUnauthorized, "Non-access token received.")
+		return
+	}
+	// convert id from string to int
+	userId, err := claims.GetSubject()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse user Id")
+		return
+	}
+	userIdNum, err := strconv.Atoi(userId)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to parse user Id")
+		return
+	}
+
 	type parameters struct {
 		Body string `json:"body"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
@@ -36,7 +71,7 @@ func (cfg *apiConfig) createChirp(w http.ResponseWriter, r *http.Request) {
 
 	cleanedMessage := cleanseProfanity(params.Body)
 
-	chirp, err := cfg.db.CreateChirp(cleanedMessage)
+	chirp, err := cfg.db.CreateChirp(cleanedMessage, userIdNum)
 
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating Chirp")
