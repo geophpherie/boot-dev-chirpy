@@ -31,7 +31,11 @@ func main() {
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
-	apiCfg := apiConfig{fileserverHits: 0, db: DB, jwtSecret: jwtSecret}
+	apiCfg := apiConfig{
+		fileserverHits: 0,
+		db:             DB,
+		jwtSecret:      jwtSecret,
+	}
 
 	r := chi.NewRouter()
 	corsMux := middlewareCors(r)
@@ -58,7 +62,10 @@ func main() {
 	adminRouter.Get("/reset", apiCfg.metricsResetHandler)
 	r.Mount("/admin", adminRouter)
 
-	server := &http.Server{Addr: ":" + port, Handler: corsMux}
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: corsMux,
+	}
 
 	err = server.ListenAndServe()
 	if err != nil {

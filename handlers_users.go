@@ -52,7 +52,10 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// send back user
-	response := User{Id: user.Id, Email: user.Email}
+	response := User{
+		Id:    user.Id,
+		Email: user.Email,
+	}
 	respondWithJSON(w, http.StatusCreated, response)
 }
 
