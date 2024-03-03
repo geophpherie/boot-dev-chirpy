@@ -16,6 +16,7 @@ type User struct {
 	Id       int    `json:"id"`
 	Email    string `json:"email"`
 	Password string `json:"-"`
+	IsRed    bool   `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +56,7 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	response := User{
 		Id:    user.Id,
 		Email: user.Email,
+		IsRed: user.IsRed,
 	}
 	respondWithJSON(w, http.StatusCreated, response)
 }
@@ -111,19 +113,21 @@ func (cfg *apiConfig) loginUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// return authenticated user response
-	authenticatedUser := struct {
+	response := struct {
 		Id           int    `json:"id"`
 		Email        string `json:"email"`
+		IsRed        bool   `json:"is_chirpy_red"`
 		Token        string `json:"token"`
 		RefreshToken string `json:"refresh_token"`
 	}{
 		Id:           user.Id,
 		Email:        user.Email,
+		IsRed:        user.IsRed,
 		Token:        accessToken,
 		RefreshToken: refreshToken,
 	}
 
-	respondWithJSON(w, http.StatusOK, authenticatedUser)
+	respondWithJSON(w, http.StatusOK, response)
 }
 
 func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +197,7 @@ func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 	response := User{
 		Id:    updatedUser.Id,
 		Email: updatedUser.Email,
+		IsRed: updatedUser.IsRed,
 	}
 	respondWithJSON(w, http.StatusOK, response)
 }

@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"fmt"
 )
 
 var ErrUserNotFound = errors.New("User not found")
@@ -11,6 +12,7 @@ type User struct {
 	Id             int    `json:"id"`
 	Email          string `json:"email"`
 	HashedPassword string `json:"password"`
+	IsRed          bool   `json:"is_chirpy_red"`
 }
 
 func (db *DB) CreateUser(email string, hashedPassword string) (User, error) {
@@ -48,7 +50,7 @@ func (db *DB) CreateUser(email string, hashedPassword string) (User, error) {
 }
 
 func (db *DB) UpdateUser(id int, email string, hashedPassword string) (User, error) {
-	DbStructure, err := db.loadDB()
+	dbStructure, err := db.loadDB()
 	if err != nil {
 		return User{}, err
 	}
@@ -59,8 +61,36 @@ func (db *DB) UpdateUser(id int, email string, hashedPassword string) (User, err
 		HashedPassword: hashedPassword,
 	}
 
-	DbStructure.Users[id] = updatedUser
-	err = db.writeDB(DbStructure)
+	dbStructure.Users[id] = updatedUser
+	err = db.writeDB(dbStructure)
+	if err != nil {
+		return User{}, err
+	}
+
+	return updatedUser, nil
+}
+
+func (db *DB) UpgradeUser(id int) (User, error) {
+	dbStructure, err := db.loadDB()
+	if err != nil {
+		return User{}, err
+	}
+
+	user, err := db.GetUserById(id)
+	if err != nil {
+		return User{}, err
+	}
+
+	updatedUser := User{
+		Id:             user.Id,
+		Email:          user.Email,
+		HashedPassword: user.HashedPassword,
+		IsRed:          true,
+	}
+
+	dbStructure.Users[id] = updatedUser
+	fmt.Print(dbStructure)
+	err = db.writeDB(dbStructure)
 	if err != nil {
 		return User{}, err
 	}
