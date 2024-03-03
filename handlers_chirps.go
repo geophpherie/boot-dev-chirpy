@@ -97,23 +97,47 @@ func cleanseProfanity(msg string) (cleansedMsg string) {
 
 func (cfg *apiConfig) getChirps(w http.ResponseWriter, r *http.Request) {
 	Chirps, err := cfg.db.GetChirps()
-
-	slices.SortFunc(Chirps, func(a, b database.Chirp) int {
-		return cmp.Compare(a.Id, b.Id)
-	})
-
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error getting Chirps")
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, Chirps)
+	// optional filter by author - should be done in db?
+	author_id := r.URL.Query().Get("author_id")
+	id, err := strconv.Atoi(author_id)
+
+	filteredChirps := []database.Chirp{}
+	if err == nil {
+		for _, chirp := range Chirps {
+			if chirp.AuthorId == id {
+				filteredChirps = append(filteredChirps, chirp)
+			}
+		}
+	} else {
+		filteredChirps = Chirps
+	}
+
+	sortOrder := r.URL.Query().Get("sort")
+	if sortOrder == "" || sortOrder != "desc" {
+		sortOrder = "asc"
+	}
+
+	// sort for output
+	slices.SortFunc(filteredChirps, func(a, b database.Chirp) int {
+		return cmp.Compare(a.Id, b.Id)
+	})
+
+	if sortOrder == "desc" {
+		slices.Reverse(filteredChirps)
+	}
+	respondWithJSON(w, http.StatusOK, filteredChirps)
 }
 
 func (cfg *apiConfig) getChirpById(w http.ResponseWriter, r *http.Request) {
 	chirpId, err := strconv.Atoi(chi.URLParam(r, "chirpId"))
 	if err != nil {
-		fmt.Print("ERROR")
+		respondWithError(w, http.StatusInternalServerError, "unknown chirp id")
+		return
 	}
 	Chirp, err := cfg.db.GetChirp(chirpId)
 
